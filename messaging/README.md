@@ -9,12 +9,13 @@ This project demonstrates a **simple Pub/Sub messaging system** using:
 ✅ **WebSockets** (Real-time communication)  
 ✅ **Vanilla JavaScript** (Web Client)  
 
-You'll learn:  
-- How **message brokers** work  
-- The **Pub/Sub pattern** in action  
-- **WebSocket** communication  
-- Basic **message persistence**  
+You'll learn:
+- How **message brokers** work
+- The **Pub/Sub pattern** in action
+- **WebSocket** communication
+- Basic **message persistence**
 - **Identity management** in messaging systems
+- **Service discovery** for dynamic channels
 
 ---
 
@@ -57,6 +58,11 @@ Open `client/index.html` in multiple browser windows to test messaging.
 - Messages are **attributed to senders**
 - Enables personalized interactions
 
+### **5. Channel Discovery**
+- **Available channels** sent to clients on connection
+- **Dynamic updates** when new channels are created
+- Enables **service discovery** in distributed systems
+
 ---
 
 ## **🔍 How It Works**  
@@ -95,8 +101,14 @@ if (msg.startsWith("IDENTITY:")) {
   username = msg.split(":")[1];
 }
 
+// Receive channel list
+if (msg.startsWith("CHANNELS:")) {
+  availableChannels = msg.split(":")[1].split(",");
+  // Update UI with available channels
+}
+
 // Subscribe to a channel
-ws.send("SUBSCRIBE:news");  
+ws.send("SUBSCRIBE:news");
 
 // Publish a message
 ws.send("PUBLISH:news:Hello world!");

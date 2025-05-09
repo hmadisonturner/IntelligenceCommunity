@@ -70,6 +70,7 @@
       let ws = new WebSocket("ws://localhost:8765");
       let currentChannel = "general";
       let username = null; // Will be set by the broker
+      let availableChannels = []; // Will be populated by the broker
 
       // Concept: Event-Driven Architecture
       // Handler for incoming messages
@@ -121,14 +122,62 @@
           msgElement.className = "message error";
           msgElement.textContent = `Error ${code}: ${details}`;
         }
+        // Handle channel list updates
+        else if (msg.startsWith("CHANNELS:")) {
+          const channelList = msg.split(":")[1];
+          availableChannels = channelList ? channelList.split(",") : [];
+
+          msgElement.className = "message system";
+
+          if (availableChannels.length > 0) {
+            msgElement.textContent = `Available channels: ${availableChannels.join(
+              ", "
+            )}`;
+
+            // Update the channel dropdown
+            const channelSelect = document.getElementById("channel-select");
+            if (channelSelect) {
+              // Clear existing options
+              channelSelect.innerHTML = "";
+
+              // Add new options
+              availableChannels.forEach((channel) => {
+                const option = document.createElement("option");
+                option.value = channel;
+                option.textContent = channel;
+                channelSelect.appendChild(option);
+              });
+            }
+          } else {
+            msgElement.textContent =
+              "No active channels available. Create one by subscribing!";
+          }
+        }
 
         document.getElementById("messages").appendChild(msgElement);
       };
 
       // Concept: User Interaction
+      // Concept: Service Discovery
+      // Allow users to discover and join existing channels
+      function subscribeSelected() {
+        const channelSelect = document.getElementById("channel-select");
+        if (channelSelect && channelSelect.value) {
+          currentChannel = channelSelect.value;
+          ws.send(`SUBSCRIBE:${currentChannel}`);
+        } else {
+          alert("Please select a channel from the dropdown.");
+        }
+      }
+
+      // Create or join a channel by name
       function subscribe() {
         currentChannel = document.getElementById("channel").value;
-        ws.send(`SUBSCRIBE:${currentChannel}`);
+        if (currentChannel && currentChannel.trim()) {
+          ws.send(`SUBSCRIBE:${currentChannel}`);
+        } else {
+          alert("Please enter a channel name.");
+        }
       }
 
       function unsubscribe() {
@@ -168,25 +217,41 @@
   <body>
     <h1>Messaging Client</h1>
     <div>
-      Channel: <input id="channel" value="general" />
-      <button onclick="subscribe()">Subscribe</button>
-      <button onclick="unsubscribe()">Unsubscribe</button>
+      <div style="display: flex; gap: 10px; margin-bottom: 10px">
+        <div>
+          <label for="channel-select">Available Channels:</label>
+          <select id="channel-select" style="min-width: 120px">
+            <!-- Will be populated by CHANNELS message -->
+          </select>
+        </div>
+        <button onclick="subscribeSelected()">Join Selected</button>
+        <button onclick="unsubscribe()">Leave Current</button>
+      </div>
+      <div>
+        <label for="channel">Create New Channel:</label>
+        <input id="channel" value="general" placeholder="Channel name" />
+        <button onclick="subscribe()">Create/Join</button>
+      </div>
     </div>
     <div id="messages"></div>
     <div>
-      <input id="message" placeholder="Type message..." onkeydown="if(event.key==='Enter')publish()" />
+      <input
+        id="message"
+        placeholder="Type message..."
+        onkeydown="if(event.key==='Enter')publish()"
+      />
       <button onclick="publish()">Send</button>
     </div>
-    <div id="status" style="margin-top: 10px; font-size: 0.8em; color: #666;">
+    <div id="status" style="margin-top: 10px; font-size: 0.8em; color: #666">
       Not connected yet...
     </div>
     <script>
       // Display connection status
-      ws.onopen = function() {
+      ws.onopen = function () {
         document.getElementById("status").textContent = "Connected";
       };
 
-      ws.onclose = function() {
+      ws.onclose = function () {
         document.getElementById("status").textContent = "Disconnected";
       };
     </script>

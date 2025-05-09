@@ -29,13 +29,17 @@ log = logging.getLogger(__name__)
 # - 'channels' acts as a message history log (persistence would enhance this)
 # - 'subscribers' tracks live connections per channel (pub/sub pattern)
 # - 'client_identities' maps websockets to usernames (identity management)
-channels = defaultdict(list)        # {channel_name: [(username, message1), (username, message2)]}
-subscribers = defaultdict(set)      # {channel_name: set((username, websocket1), (username, websocket2))}
+# {channel_name: [(username, message1), (username, message2)]}
+channels = defaultdict(list)
+# {channel_name: set((username, websocket1), (username, websocket2))}
+subscribers = defaultdict(set)
 client_identities = {}              # {websocket: username}
 
 # ======================
 # CONNECTION HANDLER
 # ======================
+
+
 async def handle_client(websocket):
     """
     Handles the full-duplex WebSocket connection for a single client.
@@ -61,6 +65,12 @@ async def handle_client(websocket):
         await websocket.send(f"IDENTITY:{username}")
         log.info(f"New client connected with identity: {username}")
 
+        # Concept: Service Discovery
+        # Send list of available channels to the new client
+        active_channels = list(subscribers.keys())
+        await websocket.send(f"CHANNELS:{','.join(active_channels)}")
+        log.info(f"Sent channel list to {username}: {active_channels}")
+
         # Main message processing loop
         async for raw_message in websocket:
             log.info(f"Received message from {username}: {raw_message}")
@@ -71,11 +81,12 @@ async def handle_client(websocket):
                 # Concept: Pub/Sub Pattern
                 # Client expresses interest in a channel
                 channel = raw_message.split(":")[1]
-                if not channel.isalnum(): # Basic validation
+                if not channel.isalnum():  # Basic validation
                     await websocket.send(f"ERROR:400:Invalid channel name")
                     continue
 
                 # Store subscription with identity
+                was_new_channel = len(subscribers[channel]) == 0
                 subscribers[channel].add((username, websocket))
 
                 # Concept: Channel/Topic
@@ -85,6 +96,20 @@ async def handle_client(websocket):
                 # Optional: Send message history
                 for sender, content in channels.get(channel, []):
                     await websocket.send(f"MSG:{channel}:{sender}:{content}")
+
+                # Concept: Service Discovery Updates
+                # If this is a new channel, broadcast its availability to all clients
+                if was_new_channel:
+                    active_channels = list(subscribers.keys())
+                    channel_list = ','.join(active_channels)
+                    log.info(f"New channel created: {channel}")
+
+                    # Broadcast to all connected clients
+                    for client_ws in client_identities.keys():
+                        try:
+                            await client_ws.send(f"CHANNELS:{channel_list}")
+                        except Exception as e:
+                            log.error(f"Error sending channel update: {e}")
 
             # ======================
             # PUBLISH COMMAND
@@ -108,8 +133,10 @@ async def handle_client(websocket):
                     try:
                         await subscriber.send(f"MSG:{channel}:{username}:{content}")
                     except Exception as e:
-                        log.error(f"Error sending message to {sub_username}: {e}")
-                        subscribers[channel].discard((sub_username, subscriber))
+                        log.error(
+                            f"Error sending message to {sub_username}: {e}")
+                        subscribers[channel].discard(
+                            (sub_username, subscriber))
 
             # ======================
             # UNSUBSCRIBE COMMAND
@@ -145,6 +172,8 @@ async def handle_client(websocket):
 # ======================
 # SERVER INITIALIZATION
 # ======================
+
+
 async def main():
     """
     Concept: Message Broker Core
@@ -156,9 +185,9 @@ async def main():
     # Concept: Network Endpoint
     # Clients connect to ws://localhost:8765
     async with websockets.serve(
-        handle_client, 
-        "localhost", 
-        8765, 
+        handle_client,
+        "localhost",
+        8765,
         ping_interval=None
     ):
         print("Broker running on ws://localhost:8765")

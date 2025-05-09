@@ -8,11 +8,18 @@ This defines the **exact message formats** for client-broker communication. All 
 ## **📜 Protocol Definitions**
 
 ### **1. Connection Initiation**
-- **Broker → Client** (on connect):  
-  `IDENTITY:<username>`  
+- **Broker → Client** (on connect):
+  `IDENTITY:<username>`
   ```python
   # Broker assigns random ID
   await websocket.send(f"IDENTITY:user-{uuid.uuid4()[:8]}")
+  ```
+
+- **Broker → Client** (on connect, after identity):
+  `CHANNELS:<channel1>,<channel2>,...`
+  ```python
+  # Broker sends available channels
+  await websocket.send(f"CHANNELS:{','.join(active_channels)}")
   ```
 
 ---
