@@ -1,1 +1,3 @@
-# IntelligenceCommunity is an educational agent framework
+# IntelligenceCommunity 
+
+IntelligenceCommunity is an educational agent framework.
