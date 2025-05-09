@@ -42,6 +42,9 @@ async def handle_client(websocket, path):
                 # Concept: Pub/Sub Pattern
                 # Client expresses interest in a channel
                 channel = raw_message.split(":")[1]
+                if not channel.isalnum(): # Basic validation
+                    print("Invalid channel name")
+                    return
                 subscribers[channel].add(websocket)
                 
                 # Concept: Channel/Topic
