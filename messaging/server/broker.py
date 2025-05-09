@@ -3,9 +3,22 @@ MESSAGE BROKER IMPLEMENTATION WITH CORE CONCEPTS EXPLAINED
 
 A simple WebSocket-based message broker demonstrating pub/sub architecture.
 """
+import logging
 import asyncio
 import websockets
 from collections import defaultdict
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        # logging.FileHandler("sample.log"),
+        logging.StreamHandler()
+    ]
+)
+
+log = logging.getLogger(__name__)
 
 # ======================
 # DATA STRUCTURES
@@ -20,7 +33,7 @@ subscribers = defaultdict(set)      # {channel_name: set(websocket1, websocket2)
 # ======================
 # CONNECTION HANDLER
 # ======================
-async def handle_client(websocket, path):
+async def handle_client(websocket):
     """
     Handles the full-duplex WebSocket connection for a single client.
     
@@ -35,6 +48,7 @@ async def handle_client(websocket, path):
     try:
         # Main message processing loop
         async for raw_message in websocket:
+            log.info("Received message: " + raw_message)
             # ======================
             # SUBSCRIBE COMMAND
             # ======================

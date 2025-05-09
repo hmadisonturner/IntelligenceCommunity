@@ -33,19 +33,20 @@
       // Handler for incoming messages
       ws.onmessage = function (event) {
         const msg = event.data;
+	console.info("Received message: " + msg);
         const msgElement = document.createElement("div");
         msgElement.className = "message incoming";
 
         // Concept: Message Protocol
         // Different message types are prefixed
         if (msg.startsWith("MSG:")) {
-          const [_, channel, content] = msg.split(":", 2);
+          const [_, channel, content] = msg.split(":", 3);
           msgElement.textContent = `[${channel}] ${content}`;
         } else if (msg.startsWith("SUB-ACK:")) {
-          msgElement.textContent = `✓ Subscribed to ${msg.split(":")[1]}`;
+          msgElement.textContent = `Subscribed to ${msg.split(":")[1]}`;
           currentChannel = msg.split(":")[1]; // Update current channel
         } else if (msg.startsWith("UNSUB-ACK:")) {
-          msgElement.textContent = `✓ Unsubscribed from ${msg.split(":")[1]}`;
+          msgElement.textContent = `Unsubscribed from ${msg.split(":")[1]}`;
           currentChannel = null; // Clear current channel
         }
 
