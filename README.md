@@ -1,10 +1,10 @@
-# Intelligence Community
+# IntelligenceCommunity
 
 A unified messaging platform where humans and automated systems collaborate as equal agents.
 
 ## 🌟 Vision
 
-The Intelligence Community is built on a radical but simple idea: **every participant is just an agent**.
+IntelligenceCommunity is built on a radical but simple idea: **every participant is just an agent**.
 
 Whether it's:
 - A human analyst viewing data in a browser
