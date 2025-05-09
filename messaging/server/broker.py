@@ -6,6 +6,7 @@ A simple WebSocket-based message broker demonstrating pub/sub architecture.
 import logging
 import asyncio
 import websockets
+import uuid
 from collections import defaultdict
 
 # Configure logging
@@ -27,8 +28,10 @@ log = logging.getLogger(__name__)
 # Concept: Message Broker State
 # - 'channels' acts as a message history log (persistence would enhance this)
 # - 'subscribers' tracks live connections per channel (pub/sub pattern)
-channels = defaultdict(list)        # {channel_name: [message1, message2]}
-subscribers = defaultdict(set)      # {channel_name: set(websocket1, websocket2)}
+# - 'client_identities' maps websockets to usernames (identity management)
+channels = defaultdict(list)        # {channel_name: [(username, message1), (username, message2)]}
+subscribers = defaultdict(set)      # {channel_name: set((username, websocket1), (username, websocket2))}
+client_identities = {}              # {websocket: username}
 
 # ======================
 # CONNECTION HANDLER
@@ -36,19 +39,31 @@ subscribers = defaultdict(set)      # {channel_name: set(websocket1, websocket2)
 async def handle_client(websocket):
     """
     Handles the full-duplex WebSocket connection for a single client.
-    
+
     Concept: Client-Server Architecture
     - Each client gets its own handler instance
     - Broker maintains centralized control
-    
+
     Concept: WebSocket Protocol
     - Persistent connection unlike HTTP
     - Enables real-time bidirectional communication
+
+    Concept: Identity Management
+    - Each client is assigned a unique username on connection
+    - Messages are attributed to their sender
     """
     try:
+        # Assign identity on connection
+        username = f"user-{str(uuid.uuid4())[:8]}"
+        client_identities[websocket] = username
+
+        # Send identity to client
+        await websocket.send(f"IDENTITY:{username}")
+        log.info(f"New client connected with identity: {username}")
+
         # Main message processing loop
         async for raw_message in websocket:
-            log.info("Received message: " + raw_message)
+            log.info(f"Received message from {username}: {raw_message}")
             # ======================
             # SUBSCRIBE COMMAND
             # ======================
@@ -57,52 +72,75 @@ async def handle_client(websocket):
                 # Client expresses interest in a channel
                 channel = raw_message.split(":")[1]
                 if not channel.isalnum(): # Basic validation
-                    print("Invalid channel name")
-                    return
-                subscribers[channel].add(websocket)
-                
+                    await websocket.send(f"ERROR:400:Invalid channel name")
+                    continue
+
+                # Store subscription with identity
+                subscribers[channel].add((username, websocket))
+
                 # Concept: Channel/Topic
                 # Named pathway for message distribution
                 await websocket.send(f"SUB-ACK:{channel}")
-                
+
                 # Optional: Send message history
-                for msg in channels.get(channel, []):
-                    await websocket.send(f"MSG:{channel}:{msg}")
+                for sender, content in channels.get(channel, []):
+                    await websocket.send(f"MSG:{channel}:{sender}:{content}")
 
             # ======================
             # PUBLISH COMMAND
             # ======================
             elif raw_message.startswith("PUBLISH:"):
-                # Concept: Message Distribution
-                # Broker receives and forwards messages
+                # Concept: Message Distribution with Identity
+                # Broker receives and forwards messages with sender info
                 _, channel, content = raw_message.split(":", 2)
-                
-                # Store message (simple persistence)
-                channels[channel].append(content)
-                
+
+                # Check if subscribed to channel before publishing
+                if not any(ws_username == username for ws_username, _ in subscribers[channel]):
+                    await websocket.send(f"ERROR:401:Not subscribed to channel")
+                    continue
+
+                # Store message with sender info (simple persistence)
+                channels[channel].append((username, content))
+
                 # Concept: Fan-out Delivery
                 # Send to all subscribers of this channel
-                for subscriber in subscribers[channel]:
+                for sub_username, subscriber in subscribers[channel]:
                     try:
-                        await subscriber.send(f"MSG:{channel}:{content}")
+                        await subscriber.send(f"MSG:{channel}:{username}:{content}")
                     except Exception as e:
-                        print(f"Error sending message to {subscriber}: {e}") # Log the error
-                        subscribers[channel].remove(subscriber)
+                        log.error(f"Error sending message to {sub_username}: {e}")
+                        subscribers[channel].discard((sub_username, subscriber))
 
             # ======================
             # UNSUBSCRIBE COMMAND
             # ======================
             elif raw_message.startswith("UNSUBSCRIBE:"):
                 channel = raw_message.split(":")[1]
-                if websocket in subscribers[channel]:
-                    subscribers[channel].remove(websocket)
+                # Find and remove the subscriber entry with this username
+                to_remove = None
+                for entry in subscribers[channel]:
+                    if entry[0] == username:
+                        to_remove = entry
+                        break
+
+                if to_remove:
+                    subscribers[channel].discard(to_remove)
                 await websocket.send(f"UNSUB-ACK:{channel}")
 
     finally:
         # Clean up when connection drops
         # Concept: Connection Management
-        for channel in subscribers:
-            subscribers[channel].discard(websocket)
+        username = client_identities.pop(websocket, None)
+        if username:
+            log.info(f"Client disconnected: {username}")
+            # Remove from all subscriber lists
+            for channel in subscribers:
+                to_remove = []
+                for entry in subscribers[channel]:
+                    if entry[0] == username:
+                        to_remove.append(entry)
+                for entry in to_remove:
+                    subscribers[channel].discard(entry)
 
 # ======================
 # SERVER INITIALIZATION
