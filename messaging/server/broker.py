@@ -68,8 +68,8 @@ async def handle_client(websocket, path):
                 for subscriber in subscribers[channel]:
                     try:
                         await subscriber.send(f"MSG:{channel}:{content}")
-                    except:
-                        # Clean up dead connections
+                    except Exception as e:
+                        print(f"Error sending message to {subscriber}: {e}") # Log the error
                         subscribers[channel].remove(subscriber)
 
             # ======================
