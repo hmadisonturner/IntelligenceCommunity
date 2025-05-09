@@ -91,7 +91,8 @@
         }
         // Handle regular messages with sender info
         else if (msg.startsWith("MSG:")) {
-          const [_, channel, sender, content] = msg.split(":", 4);
+          const [_, channel, sender] = msg.split(":", 3);
+	  const content = msg.substring(_.length + channel.length + sender.length + 3).replace(/\r\n|\r|\n/g, "<br>");
 
           // Set different styles for own messages vs others'
           if (sender === username) {

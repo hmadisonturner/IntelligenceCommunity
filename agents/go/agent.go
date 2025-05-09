@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -252,7 +251,7 @@ func main() {
 	defer agent.Close()
 	
 	// Subscribe to reports channel
-	reportChannel := "daily-reports"
+	reportChannel := "dailyreports"
 	err = agent.Subscribe(reportChannel)
 	if err != nil {
 		log.Fatalf("Failed to subscribe: %v", err)

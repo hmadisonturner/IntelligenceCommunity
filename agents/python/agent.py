@@ -126,7 +126,7 @@ class ReportBot(Agent):
     - Implements domain-specific behavior
     """
     
-    def __init__(self, report_channel="daily-reports", **kwargs):
+    def __init__(self, report_channel="dailyreports", **kwargs):
         super().__init__(**kwargs)
         self.report_channel = report_channel
     
@@ -169,7 +169,7 @@ Department Breakdown:
     async def post_report(self):
         """Generate and post a report to the designated channel."""
         # Connect if not already connected
-        if not hasattr(self, 'websocket') or self.websocket.closed:
+        if not hasattr(self, 'websocket'):
             await self.connect()
         
         # Subscribe to report channel if needed
