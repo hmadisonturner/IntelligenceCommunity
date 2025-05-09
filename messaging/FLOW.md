@@ -49,5 +49,4 @@ flowchart TD
     • Broker: Central routing
     • SUBSCRIBE: Pub/Sub pattern
     • PUBLISH: Message distribution]
-    style legend fill:#f9f9f9,stroke:#ddd
 ```
