@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Messaging Client</title>
+    <style>
+      /* Concept: User Experience */
+      /* Makes the pub/sub interactions more intuitive */
+      .message {
+        margin: 5px;
+        padding: 8px;
+        border-radius: 4px;
+      }
+      .incoming {
+        background: #e3f2fd;
+      }
+      .outgoing {
+        background: #bbdefb;
+        text-align: right;
+      }
+      #messages {
+        height: 300px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+      }
+    </style>
+    <script>
+      // Concept: WebSocket Client
+      // Maintains persistent connection to broker
+      let ws = new WebSocket("ws://localhost:8765");
+      let currentChannel = "general";
+
+      // Concept: Event-Driven Architecture
+      // Handler for incoming messages
+      ws.onmessage = function (event) {
+        const msg = event.data;
+        const msgElement = document.createElement("div");
+        msgElement.className = "message incoming";
+
+        // Concept: Message Protocol
+        // Different message types are prefixed
+        if (msg.startsWith("MSG:")) {
+          const [_, channel, content] = msg.split(":", 2);
+          msgElement.textContent = `[${channel}] ${content}`;
+        } else if (msg.startsWith("SUB-ACK:")) {
+          msgElement.textContent = `✓ Subscribed to ${msg.split(":")[1]}`;
+          currentChannel = msg.split(":")[1]; // Update current channel
+        } else if (msg.startsWith("UNSUB-ACK:")) {
+          msgElement.textContent = `✓ Unsubscribed from ${msg.split(":")[1]}`;
+          currentChannel = null; // Clear current channel
+        }
+
+        document.getElementById("messages").appendChild(msgElement);
+      };
+
+      // Concept: User Interaction
+      function subscribe() {
+        currentChannel = document.getElementById("channel").value;
+        ws.send(`SUBSCRIBE:${currentChannel}`);
+      }
+
+      function unsubscribe() {
+        if (currentChannel) {
+          ws.send(`UNSUBSCRIBE:${currentChannel}`);
+
+          // Visual feedback
+          const feedback = document.createElement("div");
+          feedback.className = "message system";
+          feedback.textContent = `Unsubscribing from ${currentChannel}...`;
+          document.getElementById("messages").appendChild(feedback);
+        } else {
+          alert("Not currently subscribed to any channel!");
+        }
+      }
+
+      function publish() {
+        const message = document.getElementById("message").value;
+        if (message) {
+          ws.send(`PUBLISH:${currentChannel}:${message}`);
+
+          // Show our own message immediately
+          const msgElement = document.createElement("div");
+          msgElement.className = "message outgoing";
+          msgElement.textContent = message;
+          document.getElementById("messages").appendChild(msgElement);
+
+          document.getElementById("message").value = "";
+        }
+      }
+
+      // Concept: Clean Disconnect
+      window.addEventListener("beforeunload", () => {
+        ws.close();
+      });
+    </script>
+  </head>
+  <body>
+    <h1>Pub/Sub Client</h1>
+    <div>
+      Channel: <input id="channel" value="general" />
+      <button onclick="subscribe()">Subscribe</button>
+      <button onclick="unsubscribe()">Unsubscribe</button>
+    </div>
+    <div id="messages"></div>
+    <div>
+      <input id="message" placeholder="Type message..." />
+      <button onclick="publish()">Send</button>
+    </div>
+  </body>
+</html>
