@@ -14,6 +14,7 @@ You'll learn:
 - The **Pub/Sub pattern** in action  
 - **WebSocket** communication  
 - Basic **message persistence**  
+- **Identity management** in messaging systems
 
 ---
 
@@ -21,18 +22,18 @@ You'll learn:
 
 ### **1. Install Dependencies**  
 ```bash
-sudo apt install python3-websockets  # Debian/Ubuntu
-pip install websockets asyncio       # Other OS
+cd server
+pip install -r requirements.txt
 ```
 
 ### **2. Run the Message Broker**  
 ```bash
-python3 broker.py
+python server/broker.py
 ```
 > **Broker starts at:** `ws://localhost:8765`  
 
 ### **3. Open the Web Client**  
-Open `client.html` in multiple browser windows to test messaging.  
+Open `client/index.html` in multiple browser windows to test messaging.  
 
 ---
 
@@ -51,80 +52,110 @@ Open `client.html` in multiple browser windows to test messaging.
 - **Full-duplex** (simultaneous send/receive)  
 - **Persistent connection** (unlike HTTP)  
 
+### **4. Identity System**
+- Each client receives a **unique identity** on connection
+- Messages are **attributed to senders**
+- Enables personalized interactions
+
 ---
 
 ## **🔍 How It Works**  
 
-### **📡 Broker Internals** (`broker.py`)  
+### **📡 Broker Internals** (`server/broker.py`)  
 ```python
-# 1. Stores messages per channel
-channels = defaultdict(list)  # e.g., {"news": ["Hello!", "Breaking!"]}
+# 1. Stores messages per channel with sender info
+channels = defaultdict(list)  # e.g., {"news": [("user1", "Hello!"), ("user2", "Breaking!")]}
 
-# 2. Tracks active subscribers
-subscribers = defaultdict(set)  # e.g., {"news": {websocket1, websocket2}}
+# 2. Tracks active subscribers with identities
+subscribers = defaultdict(set)  # e.g., {"news": {("user1", websocket1), ("user2", websocket2)}}
 
-# 3. Handles incoming messages
-async def handle_client(websocket, path):
+# 3. Manages client identities
+client_identities = {}  # e.g., {websocket1: "user1", websocket2: "user2"}
+
+# 4. Handles incoming messages
+async def handle_client(websocket):
+    # Assign identity on connection
+    username = f"user-{str(uuid.uuid4())[:8]}"
+    await websocket.send(f"IDENTITY:{username}")
+    
+    # Subscribe handler
     if message.startswith("SUBSCRIBE:"):
-        subscribers[channel].add(websocket)  # Add to subscription list
+        subscribers[channel].add((username, websocket))
+        
+    # Publish handler with identity
     elif message.startswith("PUBLISH:"):
-        for subscriber in subscribers[channel]:  # Fan-out to subscribers
-            await subscriber.send(f"MSG:{channel}:{content}")
+        for sub_username, subscriber in subscribers[channel]:
+            await subscriber.send(f"MSG:{channel}:{username}:{content}")
 ```
 
-### **💻 Web Client** (`client.html`)  
+### **💻 Web Client** (`client/index.html`)  
 ```javascript
-let ws = new WebSocket("ws://localhost:8765");
+// Handle identity assignment
+if (msg.startsWith("IDENTITY:")) {
+  username = msg.split(":")[1];
+}
 
 // Subscribe to a channel
 ws.send("SUBSCRIBE:news");  
 
 // Publish a message
 ws.send("PUBLISH:news:Hello world!");
+
+// Receive messages with sender info
+if (msg.startsWith("MSG:")) {
+  const [_, channel, sender, content] = msg.split(":", 4);
+  // Display message with sender attribution
+}
 ```
 
 ---
 
-## **📈 Extending the Project**  
+## **📈 Next Steps & Extensions**  
 
-### **🔹 Add Message Persistence**  
+### **🔹 Add Persistent Storage**  
 ```python
 # Replace defaultdict with SQLite
 import sqlite3
 db = sqlite3.connect("messages.db")
-db.execute("CREATE TABLE IF NOT EXISTS messages (channel TEXT, content TEXT)")
+db.execute("CREATE TABLE IF NOT EXISTS messages (channel TEXT, sender TEXT, content TEXT)")
 ```
 
-### **🔹 Multiple Brokers (Federation)**  
-- Brokers can forward messages to each other  
-- Use a **topic exchange pattern** (e.g., `PUBLISH:news@broker2`)  
-
-### **🔹 Authentication**  
+### **🔹 Add Authentication**  
 ```python
 # Add simple auth
 if message.startswith("AUTH:"):
-    if validate_token(message.split(":")[1]):
+    token = message.split(":")[1]
+    if validate_token(token):
         authenticated = True
+        # Associate authenticated identity
+```
+
+### **🔹 Direct Messaging**  
+```python
+# Private messaging
+if message.startswith("DIRECT:"):
+    _, recipient, content = message.split(":", 2)
+    # Route to specific user rather than channel
 ```
 
 ---
 
-## **📚 Learn More**  
-- **[WebSocket RFC](https://tools.ietf.org/html/rfc6455)** (Protocol specs)  
-- **[Redis Pub/Sub](https://redis.io/topics/pubsub)** (Production-grade messaging)  
-- **[MQTT](https://mqtt.org/)** (IoT-focused messaging)  
+## **📚 Documentation**  
+- **[PROTOCOL.md](docs/PROTOCOL.md)** - Detailed message format specifications
+- **[FLOW.md](docs/FLOW.md)** - System architecture and data flow diagrams
+- **[SUMMARY.md](docs/SUMMARY.md)** - Key concept implementation mappings
 
 ---
 
-## **🎯 Final Challenge**  
-**Modify the broker to:**  
-1. Store messages **even if no subscribers exist**  
-2. Add **typing indicators** (e.g., `USER_TYPING:general`)  
-3. Support **private messages** (`PUBLISH:@user2:Hi there!`)  
+## **🎯 Challenge Projects**  
+**Try extending the system with:**  
+1. **User presence indicators** (online/offline status)  
+2. **Message delivery confirmations**  
+3. **Channel metadata** (topic, member count)  
+4. **Message edit/delete functionality**
 
 ---
 
 **🌟 Happy Coding!**  
 Try breaking, improving, and scaling this toy system.  
-When you’re ready, explore **Kafka, RabbitMQ, or NATS** for production systems!
-
+When you're ready, explore **Kafka, RabbitMQ, or NATS** for production systems!
